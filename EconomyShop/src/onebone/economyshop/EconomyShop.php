@@ -29,13 +29,10 @@ use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\event\player\PlayerJoinEvent;
 use pocketmine\event\entity\EntityTeleportEvent;
 use pocketmine\event\player\PlayerMoveEvent;
+use pocketmine\item\Item;
 use pocketmine\item\ItemFactory;
-use pocketmine\item\ItemIds;
-use pocketmine\item\StringToItemParser;
-use pocketmine\math\Facing;
-use pocketmine\permission\DefaultPermissions;
-use pocketmine\permission\PermissionManager;
 use pocketmine\world\Position;
+use pocketmine\math\Vector3;
 use pocketmine\player\Player;
 use pocketmine\plugin\PluginBase;
 use pocketmine\utils\TextFormat;
@@ -84,34 +81,18 @@ class EconomyShop extends PluginBase implements Listener{
 			if(!isset($shop[9]) or $shop[9] !== -2){
 				$level = $shop["level"] ?? $shop[3];
 				if(!isset($levels[$level])){
-					$levels[$level] = $this->getServer()->getWorldManager()->getWorldByName($level);
+					$levels[$level] = $this->getServer()->getLevelByName($level);
 				}
 				$pos = new Position($shop["x"] ?? $shop[0], $shop["y"] ?? $shop[1], $shop["z"] ?? $shop[2], $levels[$level]);
 				$display = $pos;
 				if(isset($shop[9]) && $shop[9] !== -1){
 					$display = $pos->getSide($shop[9]);
 				}
-				$this->items[$level][] = new ItemDisplayer($display, Itemfactory::getInstance()->get((int) ($shop["item"] ?? $shop[4]), (int) ($shop["meta"] ?? $shop[5]), (int) ($shop["amount"] ?? $shop[7])), $pos);
+				$this->items[$level][] = new ItemDisplayer($display, Itemfactory::get((int) ($shop["item"] ?? $shop[4]), (int) ($shop["meta"] ?? $shop[5]), (int) ($shop["amount"] ?? $shop[7])), $pos);
 			}
 		}
 
 		$this->getServer()->getPluginManager()->registerEvents($this, $this);
-
-        $economyShop = PermissionManager::getInstance()->getPermission("economyshop.*");
-        $economyCmdShop = PermissionManager::getInstance()->getPermission("economyshop.command.shop");
-        $economyShopShop = PermissionManager::getInstance()->getPermission("economyshop.shop.*");
-
-        $economyShopShop->addChild("economyshop.shop.buy", true);
-        $economyShopShop->recalculatePermissibles();
-
-        $economyCmdShop->addChild("economyshop.command.shop.create", true);
-        $economyCmdShop->addChild("economyshop.command.shop.remove", true);
-        $economyCmdShop->addChild("economyshop.command.shop.list", true);
-        $economyCmdShop->recalculatePermissibles();
-
-        $economyShop->addChild($economyCmdShop->getName(), true);
-        $economyShop->addChild($economyShopShop->getName(), true);
-        $economyShop->recalculatePermissibles();
 	}
 
 	public function onCommand(CommandSender $sender, Command $command, string $label, array $params): bool{
@@ -145,15 +126,15 @@ class EconomyShop extends PluginBase implements Listener{
 						}
 
 						if(trim($side) === ""){
-							$side = Facing::UP;
+							$side = Vector3::SIDE_UP;
 						}else{
 							switch(strtolower($side)){
-								case "up": case Facing::UP: $side = Facing::UP;break;
-								case "down": case Facing::DOWN: $side = Facing::DOWN;break;
-								case "west": case Facing::WEST: $side = Facing::WEST;break;
-								case "east": case Facing::EAST: $side = Facing::EAST;break;
-								case "north": case Facing::NORTH: $side = Facing::NORTH;break;
-								case "south": case Facing::SOUTH: $side = Facing::SOUTH;break;
+								case "up": case Vector3::SIDE_UP: $side = Vector3::SIDE_UP;break;
+								case "down": case Vector3::SIDE_DOWN: $side = Vector3::SIDE_DOWN;break;
+								case "west": case Vector3::SIDE_WEST: $side = Vector3::SIDE_WEST;break;
+								case "east": case Vector3::SIDE_EAST: $side = Vector3::SIDE_EAST;break;
+								case "north": case Vector3::SIDE_NORTH: $side = Vector3::SIDE_NORTH;break;
+								case "south": case Vector3::SIDE_SOUTH: $side = Vector3::SIDE_SOUTH;break;
 								case "shop": case -1: $side = -1;break;
 								case "none": case -2: $side = -2;break;
 								default:
@@ -198,7 +179,7 @@ class EconomyShop extends PluginBase implements Listener{
 
 	public function onPlayerJoin(PlayerJoinEvent $event){
 		$player = $event->getPlayer();
-		$level = $player->getWorld()->getFolderName();
+		$level = $player->getLevel()->getFolderName();
 		$this->canBuy[strtolower($player->getName())] = true;
 		if (isset($this->items[$level])) {
 			foreach ($this->items[$level] as $displayer) {
@@ -210,7 +191,7 @@ class EconomyShop extends PluginBase implements Listener{
 	public function onPlayerTeleport(EntityTeleportEvent $event){
 		$player = $event->getEntity();
 		if($player instanceof Player){
-			if(($from = $event->getFrom()->getWorld()) !== ($to = $event->getTo()->getWorld())){
+			if(($from = $event->getFrom()->getLevel()) !== ($to = $event->getTo()->getLevel())){
 				if($from !== null and isset($this->items[$from->getFolderName()])){
 					foreach($this->items[$from->getFolderName()] as $displayer){
 						$displayer->despawnFrom($player);
@@ -236,26 +217,25 @@ class EconomyShop extends PluginBase implements Listener{
 		$iusername = strtolower($player->getName());
 
 		if(isset($this->queue[$iusername])){
-			$signIds = [ItemIds::SIGN, ItemIds::SIGN_POST, ItemIds::WALL_SIGN];
-			if(!$this->getConfig()->get("allow-any-block", true) && !in_array($block->getIdInfo()->getItemId(), $signIds)) {
+			$signIds = [Item::SIGN, Item::SIGN_POST, Item::WALL_SIGN];
+			if(!$this->getConfig()->get("allow-any-block", true) && !in_array($block->getItemId(), $signIds)) {
 				$player->sendMessage($this->getMessage("shop-create-allow-any-block"));
 				return;
 			}
 			$queue = $this->queue[$iusername];
-
-			$item = StringToItemParser::getInstance()->parse($queue[0]);
+			$item = Item::fromString($queue[0]);
 			$item->setCount($queue[1]);
 
-			$ev = new ShopCreationEvent($block->getPosition(), $item, $queue[2], $queue[3]);
-			$ev->call();
+			$ev = new ShopCreationEvent($block, $item, $queue[2], $queue[3]);
+			$this->getServer()->getPluginManager()->callEvent($ev);
 
 			if($ev->isCancelled()){
 				$player->sendMessage($this->getMessage("shop-create-failed"));
 				unset($this->queue[$iusername]);
 				return;
 			}
-			$result = $this->provider->addShop($block->getPosition(), [
-				$block->getPosition()->getX(), $block->getPosition()->getY(), $block->getPosition()->getZ(), $block->getPosition()->getWorld()->getFolderName(),
+			$result = $this->provider->addShop($block, [
+				$block->getX(), $block->getY(), $block->getZ(), $block->getLevel()->getFolderName(),
 				$item->getID(), $item->getDamage(), $item->getName(), $queue[1], $queue[2], $queue[3]
 			]);
 
@@ -266,8 +246,8 @@ class EconomyShop extends PluginBase implements Listener{
 						$pos = $block->getSide($queue[3]);
 					}
 
-					$this->items[$pos->getPosition()->getWorld()->getFolderName()][] = ($dis = new ItemDisplayer($pos->getPosition(), $item, $block->getPosition()));
-					$dis->spawnToAll($pos->getPosition()->getWorld());
+					$this->items[$pos->getLevel()->getFolderName()][] = ($dis = new ItemDisplayer($pos, $item, $block));
+					$dis->spawnToAll($pos->getLevel());
 				}
 
 				$player->sendMessage($this->getMessage("shop-created"));
@@ -282,11 +262,11 @@ class EconomyShop extends PluginBase implements Listener{
 			unset($this->queue[$iusername]);
 			return;
 		}elseif(isset($this->removeQueue[$iusername])){
-			$shop = $this->provider->getShop($block->getPosition());
+			$shop = $this->provider->getShop($block);
 			foreach($this->items as $level => $arr){
 				foreach($arr as $key => $displayer){
 					$link = $displayer->getLinked();
-					if($link->getWorld() !== null && ($link->getX() === ($shop["x"] ?? $shop[0])) && ($link->getY() === ($shop["y"] ?? $shop[1])) && ($link->getZ() === ($shop["z"] ?? $shop[2])) && $link->getWorld()->getFolderName() === ($shop["level"] ?? $shop[3])){
+					if($link->getLevel() !== null && ($link->getX() === ($shop["x"] ?? $shop[0])) && ($link->getY() === ($shop["y"] ?? $shop[1])) && ($link->getZ() === ($shop["z"] ?? $shop[2])) && $link->getLevel()->getFolderName() === ($shop["level"] ?? $shop[3])){
 						$displayer->despawnFromAll();
 						unset($this->items[$key]);
 						break 2;
@@ -294,7 +274,7 @@ class EconomyShop extends PluginBase implements Listener{
 				}
 			}
 
-			$this->provider->removeShop($block->getPosition());
+			$this->provider->removeShop($block);
 
 			unset($this->removeQueue[$iusername]);
 			$player->sendMessage($this->getMessage("shop-removed"));
@@ -305,7 +285,7 @@ class EconomyShop extends PluginBase implements Listener{
 			return;
 		}
 
-		if (($shop = $this->provider->getShop($block->getPosition())) !== false && $this->canBuy[$iusername] == true) {
+		if (($shop = $this->provider->getShop($block)) !== false && $this->canBuy[$iusername] == true) {
 			if ($this->getConfig()->get("enable-double-tap")) {
 				$now = time();
 				if(isset($this->tap[$iusername]) and $now - $this->tap[$iusername] < 1){
@@ -334,17 +314,17 @@ class EconomyShop extends PluginBase implements Listener{
 	public function onBlockPlace(BlockPlaceEvent $event){
 		$iusername = strtolower($event->getPlayer()->getName());
 		if(isset($this->placeQueue[$iusername])){
-			$event->cancel();
+			$event->setCancelled();
 			unset($this->placeQueue[$iusername]);
 		}
 	}
 
 	public function onBlockBreak(BlockBreakEvent $event){
 		$block = $event->getBlock();
-		if($this->provider->getShop($block->getPosition()) !== false){
+		if($this->provider->getShop($block) !== false){
 			$player = $event->getPlayer();
 
-			$event->cancel();
+			$event->setCancelled(true);
 			$player->sendMessage($this->getMessage("shop-breaking-forbidden"));
 		}
 	}
@@ -363,14 +343,14 @@ class EconomyShop extends PluginBase implements Listener{
 			$player->sendMessage($this->getMessage("no-money", [$shop["price"] ?? $shop[8], $shop["itemName"] ?? $shop[6]]));
 		}else{
 			if (is_string($shop["item"] ?? $shop[4])){
-				$itemId = StringToItemParser::getInstance()->parse((string) ($shop["item"] ?? $shop[4]), false)->getId();
+				$itemId = ItemFactory::fromString((string) ($shop["item"] ?? $shop[4]), false)->getId();
 			}else{
-				$itemId = ItemFactory::getInstance()->get((int) ($shop["item"] ?? $shop[4]), false)->getId();
+				$itemId = ItemFactory::get((int) ($shop["item"] ?? $shop[4]), false)->getId();
 			}
-			$item = ItemFactory::getInstance()->get($itemId, (int) ($shop["meta"] ?? $shop[5]), (int) ($shop["amount"] ?? $shop[7]));
+			$item = ItemFactory::get($itemId, (int) ($shop["meta"] ?? $shop[5]), (int) ($shop["amount"] ?? $shop[7]));
 			if($player->getInventory()->canAddItem($item)){
-				$ev = new ShopTransactionEvent($player, new Position($shop["x"] ?? $shop[0], $shop["y"] ?? $shop[1], $shop["z"] ?? $shop[2], $this->getServer()->getWorldManager()->getWorldByName($shop["level"] ?? $shop[3])), $item, ($shop["price"] ?? $shop[8]));
-				$ev->call();
+				$ev = new ShopTransactionEvent($player, new Position($shop["x"] ?? $shop[0], $shop["y"] ?? $shop[1], $shop["z"] ?? $shop[2], $this->getServer()->getLevelByName($shop["level"] ?? $shop[3])), $item, ($shop["price"] ?? $shop[8]));
+				$this->getServer()->getPluginManager()->callEvent($ev);
 				if($ev->isCancelled()){
 					$player->sendMessage($this->getMessage("failed-buy"));
 					return true;

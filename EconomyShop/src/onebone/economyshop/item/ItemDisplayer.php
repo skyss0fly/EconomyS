@@ -22,9 +22,7 @@ namespace onebone\economyshop\item;
 
 use pocketmine\entity\Entity;
 use pocketmine\item\Item;
-use pocketmine\network\mcpe\convert\TypeConverter;
-use pocketmine\network\mcpe\protocol\types\inventory\ItemStackWrapper;
-use pocketmine\world\World as Level;
+use pocketmine\level\Level;
 use pocketmine\world\Position;
 use pocketmine\math\Vector3;
 use pocketmine\network\mcpe\protocol\AddItemActorPacket as AddItemEntityPacket;
@@ -32,25 +30,33 @@ use pocketmine\network\mcpe\protocol\RemoveActorPacket as RemoveEntityPacket;
 use pocketmine\player\Player;
 use pocketmine\Server;
 
-class ItemDisplayer
-{
+class ItemDisplayer{
+    /** @var Position */
+    private $pos;
+    /** @var Item */
+    private $item;
+    /** @var Position */
+    private $linked;
 
     private $eid;
 
-    public function __construct(private Position $pos, private Item $item, private Position $linked)
-    {
-        $this->eid = Entity::nextRuntimeId();
+    public function __construct(Position $pos, Item $item, Position $linked){
+        $this->pos = $pos;
+        $this->item = $item;
+        $this->linked = $linked;
+
+        $this->eid = Entity::$entityCount++;
     }
 
     public function spawnTo(Player $player){
         $pk = new AddItemEntityPacket;
         $pk->entityRuntimeId = $this->eid;
-        $pk->item = ItemStackWrapper::legacy(TypeConverter::getInstance()->coreItemStackToNet($this->item));
+        $pk->item = $this->item;
         $position = new Vector3($this->pos->x + 0.5, $this->pos->y, $this->pos->z + 0.5);
         $motion = new Vector3(0, 0, 0);
         $pk->position = $position;
         $pk->motion = $motion;
-        $player->getNetworkSession()->sendDataPacket($pk);
+        $player->dataPacket($pk);
     }
 
     public function spawnToAll(Level $level = null){
@@ -62,7 +68,7 @@ class ItemDisplayer
     public function despawnFrom(Player $player){
         $pk = new RemoveEntityPacket;
         $pk->entityUniqueId = $this->eid;
-        $player->getNetworkSession()->sendDataPacket($pk);
+        $player->dataPacket($pk);
     }
 
     public function despawnFromAll(Level $level = null){

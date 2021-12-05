@@ -337,7 +337,7 @@ class EconomySell extends PluginBase implements Listener{
     public function onBlockPlace(BlockPlaceEvent $event){
         $iusername = strtolower($event->getPlayer()->getName());
         if(isset($this->placeQueue[$iusername])){
-            $event->cancel();
+            $event->setCancelled();
             unset($this->placeQueue[$iusername]);
         }
     }
@@ -347,7 +347,7 @@ class EconomySell extends PluginBase implements Listener{
         if($this->provider->getSell($block) !== false){
             $player = $event->getPlayer();
 
-            $event->cancel();
+            $event->setCancelled(true);
             $player->sendMessage($this->getMessage("sell-breaking-forbidden"));
         }
     }
