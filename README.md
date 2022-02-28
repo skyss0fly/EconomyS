@@ -1,3 +1,7 @@
+# EconomyAPI has been removed from Poggit.
+
+Please switch to new economy plugins like [BedrockEconomy](https://poggit.pmmp.io/p/BedrockEconomy) or [Capital](https://poggit.pmmp.io/p/Capital) instead.
+
 ## General
 
 [![Poggit Release](https://poggit.pmmp.io/shield.approved/EconomyAPI)](https://poggit.pmmp.io/p/EconomyAPI)
